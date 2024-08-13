@@ -1,3 +1,6 @@
+Fork of the original Unified Streaming Live-CMAF demo, fixed for multi-arch, runs on x86 and arm64 (incl Macs)
+
+
 ![Image](unifiedstreaming-logo-black.jpg?raw=true)
 # Unified Streaming Live Origin Demo <br/> DASH-IF Live Media Ingest Protocol - Interface 1 (CMAF)
 
