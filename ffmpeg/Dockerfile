@@ -2,13 +2,16 @@
 # based on image from
 # https://hub.docker.com/r/jrottenberg/ffmpeg/
 #
+# Fork of original Unified Streaming setup
+# Fixed for :
+# 1) Multiarch X86/ARM64. USP live demo now runs on Macs as well
+# 2) Git repos for x264 and x265, removed version options.
+# 3) Updated Alpine version to 3.19
+# 4) Todo:  Update FFMPEG to contemporary version (needs fixes in patches)
 #
-FROM    alpine:3.12
+FROM    alpine:3.19
 
-
-ENV     X264_VERSION=20160826-2245-stable \
-        X265_VERSION=x265_2.8 \
-        PKG_CONFIG_PATH=/usr/local/lib/pkgconfig \
+ENV     PKG_CONFIG_PATH=/usr/local/lib/pkgconfig \
         SRC=/usr/local
 
 RUN     buildDeps="autoconf \
@@ -24,6 +27,7 @@ RUN     buildDeps="autoconf \
                    git \
                    libtool \
                    make \
+                   nasm \
                    openssl-dev \
                    tar \
                    yasm \
@@ -31,29 +35,30 @@ RUN     buildDeps="autoconf \
                    pkgconfig \
                    zlib-dev" && \
         export MAKEFLAGS="-j$(($(grep -c ^processor /proc/cpuinfo) + 1))" && \
-        apk add --update ${buildDeps} freetype-dev fontconfig-dev ttf-droid libgcc libstdc++ ca-certificates && \
-        DIR=$(mktemp -d) && cd ${DIR} && \
+        apk add --update ${buildDeps} freetype-dev fontconfig-dev ttf-droid libgcc libstdc++ ca-certificates
+RUN     DIR=$(mktemp -d) && cd ${DIR} && \
         echo "**** COMPILING x264 ****" && \
-        curl -sL https://download.videolan.org/pub/videolan/x264/snapshots/x264-snapshot-${X264_VERSION}.tar.bz2 | \
-        tar -jx --strip-components=1 && \
+        git clone https://code.videolan.org/videolan/x264.git && \
+ #       curl -sL https://download.videolan.org/pub/videolan/x264/snapshots/x264-snapshot-${X264_VERSION}.tar.bz2 | \
+ #       tar -jx --strip-components=1 && \
+        cd x264 && \
         ./configure --prefix="${SRC}" --bindir="${SRC}/bin" --enable-pic --enable-shared --disable-cli && \
-        make && \
+        make -j$(nproc) && \
         make install && \
-        rm -rf ${DIR} && \
+        rm -rf ${DIR}
         # x265 http://www.videolan.org/developers/x265.html
-        DIR=$(mktemp -d) && cd ${DIR} && \
+ RUN    DIR=$(mktemp -d) && cd ${DIR} && \
         echo "**** COMPILING x265 ****" && \
-        curl -sL https://download.videolan.org/pub/videolan/x265/${X265_VERSION}.tar.gz | \
-        tar -zx --strip-components=1 && \
+        git clone https://bitbucket.org/multicoreware/x265_git.git && \
+        cd x265_git && \
         cd build && cmake ../source && \
         make -j$(nproc) && \
         make install && \
         rm -rf ${DIR}
 
-COPY    *.patch /root/
-
 ## ffmpeg source from github
 # checkout working commit ca21cb1e36ccae2ee71d4299d477fa9284c1f551 from 12/01/2021
+COPY    *.patch /root/
 RUN     DIR=$(mktemp -d) && cd ${DIR} && \
         git clone https://github.com/FFmpeg/FFmpeg.git . && \
         git checkout --detach ca21cb1e36ccae2ee71d4299d477fa9284c1f551 && \
@@ -79,7 +84,7 @@ RUN     DIR=$(mktemp -d) && cd ${DIR} && \
         --enable-nonfree \
         --disable-debug \
         --enable-openssl && \
-        make && \
+        make -j$(nproc) && \
         make install && \
         make distclean && \
         hash -r && \
